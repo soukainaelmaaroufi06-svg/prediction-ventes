@@ -19,7 +19,7 @@ if password != "hyperu":
 
 @st.cache_data
 def load_and_prepare():
-    df = pd.read_csv("QTE VENTE ZENATA 01-06-2025 to 15-07-2025.csv")
+    df = pd.read_csv("QTE VENTE ZENATA 01-06-2025 to 15-07-2025.csv", sep=";", encoding="utf-8")
     df.columns = df.columns.str.strip().str.upper()
 
     # Support both column name variants
