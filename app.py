@@ -192,10 +192,7 @@ if st.button("Prédire"):
     st.write("**Article :**", selected_article_name)
     st.write("**Date :**", selected_date)
     st.write("**Modèle :**", selected_model)
-    # 6. Long-Range Strategic Trend Insights (July 2026)
-# 6. Perspectives strategiques a long terme (Juillet 2026)
-# 6. Perspectives strategiques a long terme (Juillet 2026)
-# 6. Perspectives strategiques a long terme (Juillet 2026)
+    # 6. Perspectives strategiques a long terme (Juillet 2026)
 st.markdown("---")
 st.subheader("Horizon Strategique a Long Terme (Juillet 2026)")
 
@@ -203,7 +200,7 @@ trend_data = pd.DataFrame()
 active_id = selected_article if 'selected_article' in locals() else None
 
 try:
-    # 1. Tentative de connexion a la base de donnees locale MySQL
+    # 1. Tentative de connexion a la base de donnees locale MySQL (Pour l'execution locale sur votre Mac)
     from sqlalchemy import create_engine
     engine_isolated = create_engine("mysql+pymysql://root:samroot@localhost/ods_hyperU")
     
@@ -213,22 +210,21 @@ try:
 except Exception as db_error:
     pass
 
-# 2. Securite Fallback Cloud : Recherche dynamique de la table de donnees chargee
+# 2. Securite Fallback Cloud Directe : Lecture directe depuis votre fichier CSV exact
 if trend_data.empty and active_id:
-    # Trouver automatiquement n'importe quel DataFrame existant contenant la colonne d'articles
-    source_df = None
-    for var_name, var_val in list(locals().items()):
-        if isinstance(var_val, pd.DataFrame) and "FK_ARTICLE" in var_val.columns:
-            source_df = var_val
-            break
-            
-    if source_df is not None:
-        try:
-            art_df = source_df[source_df["FK_ARTICLE"] == active_id]
-            # S'assurer que les colonnes requises existent avant le calcul
-            qty_col = "QTE_VENTE" if "QTE_VENTE" in art_df.columns else art_df.select_dtypes(include=[np.number]).columns[0]
+    try:
+        import os
+        # Utilisation de votre nom de fichier exact pour Zenata
+        data_file = "QTE VENTE ZENATA 01-06-2025 to 15-07-2025.csv"
+        
+        if os.path.exists(data_file):
+            fallback_df = pd.read_csv(data_file)
+            art_df = fallback_df[fallback_df["FK_ARTICLE"] == active_id]
             
             if not art_df.empty:
+                # Identifier la colonne numerique de quantite de vente
+                qty_col = "QTE_VENTE" if "QTE_VENTE" in art_df.columns else art_df.select_dtypes(include=[np.number]).columns[0]
+                
                 historical_weekly_avg = art_df[qty_col].mean() * 7
                 recent_trajectory = art_df[qty_col].tail(14).mean() * 7
                 
@@ -249,10 +245,10 @@ if trend_data.empty and active_id:
                     "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
                     "MACRO_TREND_JULY_2026": direction
                 }])
-        except Exception as calc_error:
-            pass
+    except Exception as calc_error:
+        pass
 
-# 3. Rendu de l'affichage
+# 3. Rendu de l'affichage final
 if not trend_data.empty:
     row = trend_data.iloc[0]
     c1, c2, c3 = st.columns(3)
@@ -269,6 +265,6 @@ if not trend_data.empty:
         else:
             st.info(f"Alerte Strategique : {trend_label}")
             
-    st.caption("Cette tendance macroeconomique est calculee en evaluant le taux de roulement structurel et les variations d'élan a partir du repertoire de donnees.")
+    st.caption("Cette tendance macroeconomique est calculee en evaluant le taux de roulement structurel et les variations d'élan.")
 else:
     st.warning("Impossible de charger les donnees de tendance pour cet article.")
