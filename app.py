@@ -192,16 +192,18 @@ if st.button("Prédire"):
     st.write("**Article :**", selected_article_name)
     st.write("**Date :**", selected_date)
     st.write("**Modèle :**", selected_model)
-    # 6. Perspectives strategiques a long terme (Juillet 2026)
+
+# 6. Perspectives strategiques a long terme (Juillet 2026)
 st.markdown("---")
 st.subheader("Horizon Strategique a Long Terme (Juillet 2026)")
 
 trend_data = pd.DataFrame()
-active_id = selected_article if 'selected_article' in locals() else None
+# FIXED: map active_id to the actual active selection item from your dictionary
+active_id = article_dict[selected_article_name] if selected_article_name in article_dict else None
 diagnostic_msg = ""
 
 try:
-    # 1. Tentative de connexion a la base de donnees locale MySQL (Pour l'execution locale sur votre Mac)
+    # 1. Tentative de connexion a la base de donnees locale MySQL
     from sqlalchemy import create_engine
     engine_isolated = create_engine("mysql+pymysql://root:samroot@localhost/ods_hyperU")
     
@@ -217,61 +219,41 @@ if trend_data.empty and active_id:
         import os
         data_file = "QTE VENTE ZENATA 01-06-2025 to 15-07-2025.csv"
         
-        # Safe-check: If file name layout differs, look for it case-insensitively
-        if not os.path.exists(data_file):
-            for f in os.listdir('.'):
-                if "ZENATA" in f.upper() and f.endswith('.csv'):
-                    data_file = f
-                    break
-        
         if os.path.exists(data_file):
-            fallback_df = pd.read_csv(data_file)
+            # FIXED: matched csv parsing settings with load_and_prepare definition
+            fallback_df = pd.read_csv(data_file, sep=";", encoding="utf-8")
+            fallback_df.columns = fallback_df.columns.str.strip().str.upper()
             
-            # Find the article identifier column dynamically matching your format
-            art_col = None
-            for c in fallback_df.columns:
-                if "ARTICLE" in str(c).upper():
-                    art_col = c
-                    break
-                    
-            if art_col:
-                art_df = fallback_df[fallback_df[art_col].astype(str) == str(active_id)]
+            if "ARTICLE" not in fallback_df.columns and "article" in fallback_df.columns:
+                fallback_df.rename(columns={"article": "ARTICLE"}, inplace=True)
                 
-                if not art_df.empty:
-                    # Trouver la colonne numerique correspondante pour les quantites
-                    qty_col = None
-                    for c in art_df.columns:
-                        if "VENTE" in str(c).upper() or "QTE" in str(c).upper():
-                            if pd.api.types.is_numeric_dtype(art_df[c]):
-                                qty_col = c
-                                break
-                    if not qty_col:
-                        qty_col = art_df.select_dtypes(include=[np.number]).columns[0]
-                    
-                    historical_weekly_avg = art_df[qty_col].mean() * 7
-                    recent_trajectory = art_df[qty_col].tail(14).mean() * 7
-                    
-                    momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
-                    momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
-                    
-                    july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
-                    
-                    if july_2026_weekly_pred > historical_weekly_avg * 1.03:
-                        direction = "UP (Hausse)"
-                    elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
-                        direction = "DOWN (Baisse)"
-                    else:
-                        direction = "STABLE"
-                        
-                    trend_data = pd.DataFrame([{
-                        "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
-                        "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
-                        "MACRO_TREND_JULY_2026": direction
-                    }])
+            art_df = fallback_df[fallback_df["FK_ARTICLE"] == active_id]
+            
+            if not art_df.empty:
+                qty_col = "QTE_VENTE" if "QTE_VENTE" in art_df.columns else art_df.select_dtypes(include=[np.number]).columns[0]
+                
+                historical_weekly_avg = art_df[qty_col].mean() * 7
+                recent_trajectory = art_df[qty_col].tail(14).mean() * 7
+                
+                momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
+                momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
+                
+                july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
+                
+                if july_2026_weekly_pred > historical_weekly_avg * 1.03:
+                    direction = "UP (Hausse)"
+                elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
+                    direction = "DOWN (Baisse)"
                 else:
-                    diagnostic_msg += f"Article ID {active_id} non trouve dans le fichier CSV. "
+                    direction = "STABLE"
+                    
+                trend_data = pd.DataFrame([{
+                    "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
+                    "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
+                    "MACRO_TREND_JULY_2026": direction
+                }])
             else:
-                diagnostic_msg += f"Colonne d'identification Article introuvable. Colonnes dispo: {list(fallback_df.columns)}"
+                diagnostic_msg += f"Article ID {active_id} non trouve dans le fichier CSV. "
         else:
             diagnostic_msg += f"Fichier '{data_file}' introuvable sur le serveur Cloud. "
     except Exception as calc_error:
