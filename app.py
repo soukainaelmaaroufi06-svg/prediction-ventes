@@ -198,6 +198,7 @@ st.subheader("Horizon Strategique a Long Terme (Juillet 2026)")
 
 trend_data = pd.DataFrame()
 active_id = selected_article if 'selected_article' in locals() else None
+diagnostic_msg = ""
 
 try:
     # 1. Tentative de connexion a la base de donnees locale MySQL (Pour l'execution locale sur votre Mac)
@@ -208,45 +209,73 @@ try:
         trend_query = f"SELECT * FROM sales_trends_2026 WHERE FK_ARTICLE = '{active_id}'"
         trend_data = pd.read_sql(trend_query, con=engine_isolated)
 except Exception as db_error:
-    pass
+    diagnostic_msg += f"DB Error: {str(db_error)}. "
 
 # 2. Securite Fallback Cloud Directe : Lecture directe depuis votre fichier CSV exact
 if trend_data.empty and active_id:
     try:
         import os
-        # Utilisation de votre nom de fichier exact pour Zenata
         data_file = "QTE VENTE ZENATA 01-06-2025 to 15-07-2025.csv"
+        
+        # Safe-check: If file name layout differs, look for it case-insensitively
+        if not os.path.exists(data_file):
+            for f in os.listdir('.'):
+                if "ZENATA" in f.upper() and f.endswith('.csv'):
+                    data_file = f
+                    break
         
         if os.path.exists(data_file):
             fallback_df = pd.read_csv(data_file)
-            art_df = fallback_df[fallback_df["FK_ARTICLE"] == active_id]
             
-            if not art_df.empty:
-                # Identifier la colonne numerique de quantite de vente
-                qty_col = "QTE_VENTE" if "QTE_VENTE" in art_df.columns else art_df.select_dtypes(include=[np.number]).columns[0]
-                
-                historical_weekly_avg = art_df[qty_col].mean() * 7
-                recent_trajectory = art_df[qty_col].tail(14).mean() * 7
-                
-                momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
-                momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
-                
-                july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
-                
-                if july_2026_weekly_pred > historical_weekly_avg * 1.03:
-                    direction = "UP (Hausse)"
-                elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
-                    direction = "DOWN (Baisse)"
-                else:
-                    direction = "STABLE"
+            # Find the article identifier column dynamically matching your format
+            art_col = None
+            for c in fallback_df.columns:
+                if "ARTICLE" in str(c).upper():
+                    art_col = c
+                    break
                     
-                trend_data = pd.DataFrame([{
-                    "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
-                    "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
-                    "MACRO_TREND_JULY_2026": direction
-                }])
+            if art_col:
+                art_df = fallback_df[fallback_df[art_col].astype(str) == str(active_id)]
+                
+                if not art_df.empty:
+                    # Trouver la colonne numerique correspondante pour les quantites
+                    qty_col = None
+                    for c in art_df.columns:
+                        if "VENTE" in str(c).upper() or "QTE" in str(c).upper():
+                            if pd.api.types.is_numeric_dtype(art_df[c]):
+                                qty_col = c
+                                break
+                    if not qty_col:
+                        qty_col = art_df.select_dtypes(include=[np.number]).columns[0]
+                    
+                    historical_weekly_avg = art_df[qty_col].mean() * 7
+                    recent_trajectory = art_df[qty_col].tail(14).mean() * 7
+                    
+                    momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
+                    momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
+                    
+                    july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
+                    
+                    if july_2026_weekly_pred > historical_weekly_avg * 1.03:
+                        direction = "UP (Hausse)"
+                    elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
+                        direction = "DOWN (Baisse)"
+                    else:
+                        direction = "STABLE"
+                        
+                    trend_data = pd.DataFrame([{
+                        "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
+                        "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
+                        "MACRO_TREND_JULY_2026": direction
+                    }])
+                else:
+                    diagnostic_msg += f"Article ID {active_id} non trouve dans le fichier CSV. "
+            else:
+                diagnostic_msg += f"Colonne d'identification Article introuvable. Colonnes dispo: {list(fallback_df.columns)}"
+        else:
+            diagnostic_msg += f"Fichier '{data_file}' introuvable sur le serveur Cloud. "
     except Exception as calc_error:
-        pass
+        diagnostic_msg += f"Erreur de calcul interne: {str(calc_error)}"
 
 # 3. Rendu de l'affichage final
 if not trend_data.empty:
@@ -268,3 +297,5 @@ if not trend_data.empty:
     st.caption("Cette tendance macroeconomique est calculee en evaluant le taux de roulement structurel et les variations d'élan.")
 else:
     st.warning("Impossible de charger les donnees de tendance pour cet article.")
+    if diagnostic_msg:
+        st.caption(f"🔧 **Note technique (Debug) :** {diagnostic_msg}")
