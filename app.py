@@ -195,15 +195,15 @@ if st.button("Prédire"):
     # 6. Long-Range Strategic Trend Insights (July 2026)
 # 6. Perspectives strategiques a long terme (Juillet 2026)
 # 6. Perspectives strategiques a long terme (Juillet 2026)
+# 6. Perspectives strategiques a long terme (Juillet 2026)
 st.markdown("---")
 st.subheader("Horizon Strategique a Long Terme (Juillet 2026)")
 
-# Initialize trend_data as empty
 trend_data = pd.DataFrame()
 active_id = selected_article if 'selected_article' in locals() else None
 
 try:
-    # 1. First try: Attempt to connect to your live local MySQL database
+    # 1. Tentative de connexion a la base de donnees locale MySQL
     from sqlalchemy import create_engine
     engine_isolated = create_engine("mysql+pymysql://root:samroot@localhost/ods_hyperU")
     
@@ -211,39 +211,48 @@ try:
         trend_query = f"SELECT * FROM sales_trends_2026 WHERE FK_ARTICLE = '{active_id}'"
         trend_data = pd.read_sql(trend_query, con=engine_isolated)
 except Exception as db_error:
-    # 2. Second try: If MySQL fails (like on the internet cloud), use a safe fallback
     pass
 
-# 3. Fallback: If database failed or is missing, use a safe engineering calculation on the fly
-if trend_data.empty and 'df' in locals() and active_id:
-    try:
-        # Calculate the exact same trend numbers using the data already loaded in the app memory
-        art_df = df[df["FK_ARTICLE"] == active_id].sort_values("DATE_VENTE")
-        if not art_df.empty:
-            historical_weekly_avg = art_df["QTE_VENTE"].mean() * 7
-            recent_trajectory = art_df["QTE_VENTE"].tail(14).mean() * 7
+# 2. Securite Fallback Cloud : Recherche dynamique de la table de donnees chargee
+if trend_data.empty and active_id:
+    # Trouver automatiquement n'importe quel DataFrame existant contenant la colonne d'articles
+    source_df = None
+    for var_name, var_val in list(locals().items()):
+        if isinstance(var_val, pd.DataFrame) and "FK_ARTICLE" in var_val.columns:
+            source_df = var_val
+            break
             
-            momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
-            momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
+    if source_df is not None:
+        try:
+            art_df = source_df[source_df["FK_ARTICLE"] == active_id]
+            # S'assurer que les colonnes requises existent avant le calcul
+            qty_col = "QTE_VENTE" if "QTE_VENTE" in art_df.columns else art_df.select_dtypes(include=[np.number]).columns[0]
             
-            july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
-            
-            if july_2026_weekly_pred > historical_weekly_avg * 1.03:
-                direction = "UP (Hausse)"
-            elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
-                direction = "DOWN (Baisse)"
-            else:
-                direction = "STABLE"
+            if not art_df.empty:
+                historical_weekly_avg = art_df[qty_col].mean() * 7
+                recent_trajectory = art_df[qty_col].tail(14).mean() * 7
                 
-            trend_data = pd.DataFrame([{
-                "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
-                "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
-                "MACRO_TREND_JULY_2026": direction
-            }])
-    except Exception as calc_error:
-        st.error(f"Erreur de calcul : {calc_error}")
+                momentum_ratio = recent_trajectory / historical_weekly_avg if historical_weekly_avg > 0 else 1.0
+                momentum_ratio = float(np.clip(momentum_ratio, 0.7, 1.3))
+                
+                july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
+                
+                if july_2026_weekly_pred > historical_weekly_avg * 1.03:
+                    direction = "UP (Hausse)"
+                elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
+                    direction = "DOWN (Baisse)"
+                else:
+                    direction = "STABLE"
+                    
+                trend_data = pd.DataFrame([{
+                    "HISTORICAL_WEEKLY_AVG": round(historical_weekly_avg, 2),
+                    "JULY_2026_WEEKLY_PRED": round(july_2026_weekly_pred, 2),
+                    "MACRO_TREND_JULY_2026": direction
+                }])
+        except Exception as calc_error:
+            pass
 
-# 4. Display the results beautifully if data was found or calculated
+# 3. Rendu de l'affichage
 if not trend_data.empty:
     row = trend_data.iloc[0]
     c1, c2, c3 = st.columns(3)
