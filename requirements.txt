@@ -4,3 +4,6 @@ scikit-learn
 xgboost
 statsmodels
 streamlit
+sqlalchemy
+pymysql
+cryptography
