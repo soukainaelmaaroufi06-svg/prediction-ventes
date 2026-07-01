@@ -192,3 +192,53 @@ if st.button("Prédire"):
     st.write("**Article :**", selected_article_name)
     st.write("**Date :**", selected_date)
     st.write("**Modèle :**", selected_model)
+    # 6. Long-Range Strategic Trend Insights (July 2026)
+st.markdown("---")
+st.subheader("📈 Strategic Long-Range Horizon (July 2026)")
+
+try:
+    # Explicitly import the tool inside this block to prevent any scope errors
+    from sqlalchemy import create_engine
+    
+    # 1. Establish an isolated connection to safely query the table
+    engine_isolated = create_engine("mysql+pymysql://root:samroot@localhost/ods_hyperU")
+    
+    # 2. Grab all articles available in the trend database table
+    available_trends = pd.read_sql("SELECT DISTINCT FK_ARTICLE FROM sales_trends_2026", con=engine_isolated)
+    
+    if not available_trends.empty:
+        trend_list = sorted(available_trends["FK_ARTICLE"].unique())
+        
+        # 3. Match the current selection from your sidebar dropdown widget safely
+        active_id = selected_article if 'selected_article' in locals() else trend_list[0]
+        
+        # 4. Fetch the row for the active article
+        trend_query = f"SELECT * FROM sales_trends_2026 WHERE FK_ARTICLE = '{active_id}'"
+        trend_data = pd.read_sql(trend_query, con=engine_isolated)
+        
+        if not trend_data.empty:
+            row = trend_data.iloc[0]
+            
+            # Display clean visual cards for the long-range forecast
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric(label="Historical Weekly Baseline", value=f"{row['HISTORICAL_WEEKLY_AVG']} units")
+            with c2:
+                st.metric(label="July 2026 Predicted Weekly Demand", value=f"{row['JULY_2026_WEEKLY_PRED']} units")
+            with c3:
+            # Color badge depending on the trend direction
+                trend_label = row['MACRO_TREND_JULY_2026']
+            if "UP" in trend_label:
+                st.success(f"Strategic Alert: {trend_label}")
+            elif "DOWN" in trend_label:
+                # Changed from st.error to st.warning for a better UI look
+                st.warning(f"Strategic Alert: {trend_label}") 
+            else:
+                st.info(f"Strategic Alert: {trend_label}")
+        else:
+            st.warning(f"No long-range trend data found for Article {active_id} in 'sales_trends_2026'.")
+    else:
+        st.warning("The table 'sales_trends_2026' appears to be empty.")
+        
+except Exception as e:
+    st.error(f"Could not connect to trend table: {e}")
