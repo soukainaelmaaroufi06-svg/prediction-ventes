@@ -112,11 +112,11 @@ st.subheader("Paramètres de prédiction")
 
 selected_article_name = st.selectbox("Article", sorted(article_dict.keys()))
 selected_model = st.selectbox("Modèle", [
-    "Gradient Boosting (MAE 7.14)",
-    "Random Forest (MAE 7.17)",
-    "XGBoost (MAE 7.55)",
-    "Régression Linéaire (MAE 9.28)",
-    "SARIMA (MAE 11.57)"
+    "Gradient Boosting (MAE 7.26)",
+    "Random Forest (MAE 7.38)",
+    "XGBoost (MAE 8.38)",
+    "Régression Linéaire (MAE 10.62)",
+    "SARIMA (MAE 11.61)"
 ])
 
 # Compute valid date range from data
