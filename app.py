@@ -11,9 +11,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-st.set_page_config(page_title="Prévision des ventes - Hyper U Zenata", layout="centered")
-st.title("Prévision des ventes - Hyper U Zenata")
-password = st.text_input("Mot de passe", type="password")
+st.set_page_config(page_title="Sales Forecasting - Hyper U Zenata", layout="centered")
+st.title("Sales Forecasting - Hyper U Zenata")
+password = st.text_input("Password", type="password")
 if password != "hyperu":
     st.stop()
 
@@ -102,20 +102,20 @@ def train_models(_train_df):
 
     return lr, rf, gb, xgb
 
-with st.spinner("Entraînement des modèles..."):
+with st.spinner("Training the models..."):
     lr_model, rf_model, gb_model, xgb_model = train_models(train_df)
 
 article_names = df[["FK_ARTICLE", "ARTICLE"]].drop_duplicates().sort_values("ARTICLE")
 article_dict = dict(zip(article_names["ARTICLE"].str.strip(), article_names["FK_ARTICLE"]))
 
-st.subheader("Paramètres de prédiction")
+st.subheader("Prediction parameters")
 
-selected_article_name = st.selectbox("Article", sorted(article_dict.keys()))
-selected_model = st.selectbox("Modèle", [
+selected_article_name = st.selectbox("Item", sorted(article_dict.keys()))
+selected_model = st.selectbox("Model", [
     "Gradient Boosting (MAE 7.26)",
     "Random Forest (MAE 7.38)",
     "XGBoost (MAE 8.38)",
-    "Régression Linéaire (MAE 10.62)",
+    "Linear Regression (MAE 10.62)",
     "SARIMA (MAE 11.61)"
 ])
 
@@ -124,13 +124,13 @@ min_pred_date = (df["DATE_VENTE"].max() + pd.Timedelta(days=1)).date()
 max_pred_date = min_pred_date + datetime.timedelta(days=6)
 
 selected_date = st.date_input(
-    "Date à prédire",
+    "Date to predict",
     min_value=min_pred_date,
     max_value=max_pred_date,
     value=min_pred_date
 )
 
-if st.button("Prédire"):
+if st.button("Predict"):
     selected_fk = article_dict[selected_article_name]
     article_df = df[df["FK_ARTICLE"] == selected_fk].sort_values("DATE_VENTE")
     last_row = article_df.iloc[-1]
@@ -188,14 +188,14 @@ if st.button("Prédire"):
             else:
                 prediction = lr_model.predict(input_row)[0]
 
-    st.success(f"✅ Quantité prédite : **{round(prediction)} unités**")
-    st.write("**Article :**", selected_article_name)
-    st.write("**Date :**", selected_date)
-    st.write("**Modèle :**", selected_model)
+    st.success(f" Predicted quantity: **{round(prediction)} units**")
+    st.write("**Item:**", selected_article_name)
+    st.write("**Date:**", selected_date)
+    st.write("**Model:**", selected_model)
 
-# 6. Perspectives strategiques a long terme (Juillet 2026)
+# 6. Long-term strategic outlook (July 2026)
 st.markdown("---")
-st.subheader("Horizon Strategique a Long Terme (Juillet 2026)")
+st.subheader("Long-Term Strategic Outlook (July 2026)")
 
 trend_data = pd.DataFrame()
 # FIXED: map active_id to the actual active selection item from your dictionary
@@ -203,7 +203,7 @@ active_id = article_dict[selected_article_name] if selected_article_name in arti
 diagnostic_msg = ""
 
 try:
-    # 1. Tentative de connexion a la base de donnees locale MySQL
+    # 1. Try to connect to the local MySQL database
     from sqlalchemy import create_engine
     engine_isolated = create_engine("mysql+pymysql://root:samroot@localhost/ods_hyperU")
     
@@ -213,7 +213,7 @@ try:
 except Exception as db_error:
     diagnostic_msg += f"DB Error: {str(db_error)}. "
 
-# 2. Securite Fallback Cloud Directe : Lecture directe depuis votre fichier CSV exact
+# 2. Direct cloud fallback: read straight from the CSV file
 if trend_data.empty and active_id:
     try:
         import os
@@ -241,9 +241,9 @@ if trend_data.empty and active_id:
                 july_2026_weekly_pred = max(0.0, historical_weekly_avg * momentum_ratio)
                 
                 if july_2026_weekly_pred > historical_weekly_avg * 1.03:
-                    direction = "UP (Hausse)"
+                    direction = "UP (Increase)"
                 elif july_2026_weekly_pred < historical_weekly_avg * 0.97:
-                    direction = "DOWN (Baisse)"
+                    direction = "DOWN (Decrease)"
                 else:
                     direction = "STABLE"
                     
@@ -253,31 +253,31 @@ if trend_data.empty and active_id:
                     "MACRO_TREND_JULY_2026": direction
                 }])
             else:
-                diagnostic_msg += f"Article ID {active_id} non trouve dans le fichier CSV. "
+                diagnostic_msg += f"Item ID {active_id} not found in the CSV file. "
         else:
-            diagnostic_msg += f"Fichier '{data_file}' introuvable sur le serveur Cloud. "
+            diagnostic_msg += f"File '{data_file}' not found on the Cloud server. "
     except Exception as calc_error:
-        diagnostic_msg += f"Erreur de calcul interne: {str(calc_error)}"
+        diagnostic_msg += f"Internal calculation error: {str(calc_error)}"
 
-# 3. Rendu de l'affichage final
+# 3. Final display
 if not trend_data.empty:
     row = trend_data.iloc[0]
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric(label="Moyenne Hebdomadaire Historique", value=f"{row['HISTORICAL_WEEKLY_AVG']} unites")
+        st.metric(label="Historical Weekly Average", value=f"{row['HISTORICAL_WEEKLY_AVG']} units")
     with c2:
-        st.metric(label="Demande Hebdomadaire Prevue (Juillet 2026)", value=f"{row['JULY_2026_WEEKLY_PRED']} unites")
+        st.metric(label="Projected Weekly Demand (July 2026)", value=f"{row['JULY_2026_WEEKLY_PRED']} units")
     with c3:
         trend_label = row['MACRO_TREND_JULY_2026']
         if "UP" in trend_label:
-            st.success(f"Alerte Strategique : {trend_label}")
+            st.success(f"Strategic Alert: {trend_label}")
         elif "DOWN" in trend_label:
-            st.warning(f"Alerte Strategique : {trend_label}")
+            st.warning(f"Strategic Alert: {trend_label}")
         else:
-            st.info(f"Alerte Strategique : {trend_label}")
+            st.info(f"Strategic Alert: {trend_label}")
             
-    st.caption("Cette tendance macroeconomique est calculee en evaluant le taux de roulement structurel et les variations d'élan.")
+    st.caption("This macroeconomic trend is calculated by evaluating the structural turnover rate and momentum variations.")
 else:
-    st.warning("Impossible de charger les donnees de tendance pour cet article.")
+    st.warning("Unable to load the trend data for this item.")
     if diagnostic_msg:
-        st.caption(f"🔧 **Note technique (Debug) :** {diagnostic_msg}")
+        st.caption(f"🔧 **Technical note (Debug):** {diagnostic_msg}")
